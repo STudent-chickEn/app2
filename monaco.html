@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Monaco Editor with HTML Autocomplete</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.34.0/min/vs/editor/editor.main.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+    <style>
+        body {
+            margin: 0;
+            background-color: black;
+            color: white;
+            font-family: Arial, sans-serif;
+        }
+        #tabsContainer {
+            display: flex;
+            align-items: center;
+            padding: 4px;
+            background: #333;
+        }
+        .tab {
+            display: inline-block;
+            padding: 3px 6px;
+            background: #444;
+            margin-right: 5px;
+            border-radius: 10px;
+            cursor: pointer;
+            width: 70px;
+            text-align: center;
+            font-size: 11px;
+        }
+        .tab.active {
+            background: #666;
+        }
+        .tab-button {
+            padding: 3px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            margin-left: 5px;
+            font-size: 14px;
+            width: 25px;
+            height: 25px;
+        }
+        .delete-tab-button {
+            background: red;
+            margin-left: 5px;
+            font-size: 14px;
+            width: 25px;
+            height: 25px;
+        }
+        .editor {
+            height: calc(100vh - 60px);
+        }
+        #tabInput {
+            display: none;
+            margin-left: 5px;
+            padding: 3px;
+            border: none;
+            border-radius: 10px;
+            background: #444;
+            color: white;
+            font-size: 11px;
+        }
+        #buttonsContainer {
+            position: fixed;
+            top: 10px; /* Đặt nút ở góc trên */
+            right: 10px;
+            display: flex;
+            gap: 10px;
+        }
+        .action-button {
+            padding: 4px 8px; /* Giảm kích thước nút */
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 12px; /* Giảm kích thước chữ */
+        }
+    </style>
+</head>
+<body>
+    <div id="tabsContainer">
+        <div id="tabs"></div>
+        <button class="tab-button" id="newTabButton">+</button>
+        <button class="delete-tab-button" id="deleteTabButton">X</button>
+        <input type="text" id="tabInput" placeholder="Nhập tên tab mới" />
+    </div>
+    <div id="container"></div>
+
+    <div id="buttonsContainer">
+        <button class="action-button" id="openFileButton">Open File</button>
+        <button class="action-button" id="saveFileButton">Save File</button>
+        <button class="action-button" id="runButton">Run</button>
+        <button class="action-button" id="clearButton">Clear</button>
+        <button class="action-button" id="previewButton">Preview</button>
+    </div>
+
+    <input type="file" id="fileInput" style="display: none;" />
+
+    <script>
+        // Bước 1: Mã hóa đoạn mã JavaScript cần bảo vệ bằng CryptoJS
+        var encryptedScript = "U2FsdGVkX1+WezT2jqKaEEnnDFRR7G8Cbm62ovV9zMY5A2pxmPVJHTFvW8P/UskP1ubVdvT1KOczPdAlEvYfXg=="; // Đoạn mã đã mã hóa
+
+        // Bước 2: Giải mã và thực thi mã
+        function decryptAndRun() {
+            var decrypted = CryptoJS.AES.decrypt(encryptedScript, 'secret-key').toString(CryptoJS.enc.Utf8);
+            eval(decrypted);
+        }
+
+        // Gọi hàm giải mã khi khởi động trang
+        decryptAndRun();
+    </script>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.34.0/min/vs/loader.js"></script>
+    <script>
+        require.config({ paths: { 'vs': 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.34.0/min/vs' }}); 
+        require(['vs/editor/editor.main'], function() {
+            let editorCount = 0;
+            const editors = [];
+            const tabsContainer = document.getElementById('tabs');
+            const container = document.getElementById('container');
+            const tabInput = document.getElementById('tabInput');
+            let activeTab;
+
+            function createEditor(tabName) {
+                const editorId = `editor${editorCount++}`;
+                const tab = document.createElement('div');
+                tab.className = 'tab';
+                tab.innerText = tabName || `Tab ${editorCount}`;
+                tab.onclick = () => activateTab(editorId, tab);
+                tabsContainer.appendChild(tab);
+
+                const editorDiv = document.createElement('div');
+                editorDiv.id = editorId;
+                editorDiv.className = 'editor';
+                container.appendChild(editorDiv);
+
+                const editor = monaco.editor.create(editorDiv, {
+                    value: '<!--make by tambel-->',
+                    language: 'html',
+                    theme: 'vs-dark',
+                    automaticLayout: true,
+                });
+                editors.push({ editorId, editor, tab });
+                activateTab(editorId, tab);
+            }
+
+            function activateTab(editorId, tab) {
+                editors.forEach(({ editorId }) => {
+                    document.getElementById(editorId).style.display = 'none';
+                });
+                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                document.getElementById(editorId).style.display = 'block';
+                tab.classList.add('active');
+                activeTab = editorId;
+            }
+
+            // Tạo tab đầu tiên
+            createEditor('Tab 1');
+
+            document.getElementById('newTabButton').onclick = () => {
+                tabInput.value = '';
+                tabInput.style.display = 'inline';
+                tabInput.focus();
+            };
+
+            tabInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    createEditor(tabInput.value);
+                    tabInput.style.display = 'none';
+                }
+            });
+
+            // Xóa tab
+            document.getElementById('deleteTabButton').onclick = () => {
+                const activeEditor = editors.find(({ editorId }) => editorId === activeTab);
+                if (activeEditor) {
+                    // Xóa Monaco Editor và tab
+                    activeEditor.editor.dispose();
+                    activeEditor.tab.remove();
+                    editors.splice(editors.indexOf(activeEditor), 1);
+                    if (editors.length > 0) {
+                        activateTab(editors[0].editorId, editors[0].tab);
+                    } else {
+                        container.innerHTML = ''; // Không còn tab nào
+                    }
+                }
+            };
+
+            // Run script
+            document.getElementById('runButton').onclick = () => {
+                const activeEditor = editors.find(({ editorId }) => {
+                    return document.getElementById(editorId).style.display === 'block';
+                });
+                if (activeEditor) {
+                    const scriptContent = activeEditor.editor.getValue();
+                    const newWindow = window.open();
+                    newWindow.document.write(scriptContent);
+                    newWindow.document.close();
+                }
+            };
+
+            // Preview script
+            document.getElementById('previewButton').onclick = () => {
+                const activeEditor = editors.find(({ editorId }) => {
+                    return document.getElementById(editorId).style.display === 'block';
+                });
+                if (activeEditor) {
+                    const scriptContent = activeEditor.editor.getValue();
+                    const newWindow = window.open("", "_blank");
+                    newWindow.document.open();
+                    newWindow.document.write(scriptContent);
+                    newWindow.document.close();
+                }
+            };
+
+            // Clear editor
+            document.getElementById('clearButton').onclick = () => {
+                const activeEditor = editors.find(({ editorId }) => {
+                    return document.getElementById(editorId).style.display === 'block';
+                });
+                if (activeEditor) {
+                    activeEditor.editor.setValue('');
+                }
+            };
+
+            // Open file
+            document.getElementById('openFileButton').onclick = () => {
+                document.getElementById('fileInput').click();
+            };
+
+            document.getElementById('fileInput').onchange = (e) => {
+                const file = e.target.files[0];
+                const reader = new FileReader();
+                reader.onload = () => {
+                    const activeEditor = editors.find(({ editorId }) => {
+                        return document.getElementById(editorId).style.display === 'block';
+                    });
+                    if (activeEditor) {
+                        activeEditor.editor.setValue(reader.result);
+                    }
+                };
+                reader.readAsText(file);
+            };
+
+            // Save file
+            document.getElementById('saveFileButton').onclick = () => {
+                const activeEditor = editors.find(({ editorId }) => {
+                    return document.getElementById(editorId).style.display === 'block';
+                });
+                if (activeEditor) {
+                    const blob = new Blob([activeEditor.editor.getValue()], { type: 'text/html' });
+                    const link = document.createElement('a');
+                    link.href = URL.createObjectURL(blob);
+                    link.download = 'script.html';
+                    link.click();
+                }
+            };
+        });
+
+        // Cấu hình gợi ý tự động hoàn thành cho HTML
+        monaco.languages.registerCompletionItemProvider('html', {
+            provideCompletionItems: () => {
+                return {
+                    suggestions: [
+                        { label: 'div', kind: monaco.languages.CompletionItemKind.Snippet, insertText: '<div>\n\t${1:content}\n</div>' },
+                        { label: 'span', kind: monaco.languages.CompletionItemKind.Snippet, insertText: '<span>\n\t${1:content}\n</span>' },
+                        { label: 'h1', kind: monaco.languages.CompletionItemKind.Snippet, insertText: '<h1>${1:Heading}</h1>' },
+                        { label: 'p', kind: monaco.languages.CompletionItemKind.Snippet, insertText: '<p>${1:content}</p>' },
+                        { label: 'a', kind: monaco.languages.CompletionItemKind.Snippet, insertText: '<a href="${1:url}">${2:link text}</a>' },
+                    ]
+                };
+            }
+        });
+    </script>
+</body>
+</html>
